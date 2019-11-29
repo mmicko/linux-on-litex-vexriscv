@@ -126,6 +126,18 @@ class MiniSpartan6(Board):
     def load(self):
         os.system("xc3sprog -c ftdi build/minispartan6/gateware/top.bit")
 
+# WaxWing support -----------------------------------------------------------------------------
+
+class WaxWing(Board):
+    def __init__(self):
+        from new_boards.targets import waxwing
+        Board.__init__(self, waxwing.BaseSoC, {"serial"})
+
+    def load(self):
+        #from litex.build.xilinx import iMPACT
+        #prog = iMPACT()
+        #prog.load_bitstream("build/waxwing/gateware/top.bit")    
+        os.system("numato-loader build/waxwing/gateware/top.bin")
 
 # Versa ECP5 support -------------------------------------------------------------------------------
 
@@ -172,6 +184,7 @@ supported_boards = {
     "nexys4ddr":    Nexys4DDR,
     "nexys_video":  NexysVideo,
     "minispartan6": MiniSpartan6,
+    "waxwing":      WaxWing,
     # Lattice
     "versa_ecp5":   VersaECP5,
     "ulx3s":        ULX3S,
@@ -242,7 +255,7 @@ def main():
             builder = Builder(soc, output_dir="build/" + board_name,
                 compile_software=True, compile_gateware=False,
                 csr_json=os.path.join(build_dir, "csr.json"))
-        builder.build()
+        builder.build(mode="yosys")
 
         soc.generate_dts(board_name)
         soc.compile_dts(board_name)
