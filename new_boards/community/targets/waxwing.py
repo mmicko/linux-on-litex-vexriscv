@@ -9,7 +9,7 @@ from fractions import Fraction
 from migen import *
 from migen.genlib.resetsync import AsyncResetSynchronizer
 
-from litex.boards.platforms import waxwing
+from new_boards.platforms import waxwing
 
 from litex.soc.cores.clock import *
 from litex.soc.integration.soc_core import *
