@@ -13,20 +13,9 @@ _io = [
     ("clk100", 0, Pins("V10"), IOStandard("LVTTL")),
 
     ("serial", 0,
-        Subsignal("tx",  Pins("F16")),
-        Subsignal("rx",  Pins("F15")),
+        Subsignal("tx",  Pins("M11")),
+        Subsignal("rx",  Pins("N11")),
         IOStandard("LVTTL")
-    ),
-
-    #the board has a FTDI FT2232H
-    ("usb_fifo", 0,
-        Subsignal("data",  Pins("L17 L18 M16 M18 N17 N18 P17 P18")),
-        Subsignal("rxf_n", Pins("K18")),
-        Subsignal("txe_n", Pins("K17")),
-        Subsignal("rd_n",  Pins("J18")),
-        Subsignal("wr_n",  Pins("J16")),
-        Subsignal("siwua", Pins("H18")),
-        IOStandard("LVTTL"),
     ),
 
     ("spiflash", 0,
