@@ -131,7 +131,7 @@ class MiniSpartan6(Board):
 class WaxWing(Board):
     def __init__(self):
         from new_boards.targets import waxwing
-        Board.__init__(self, waxwing.BaseSoC, {"serial"})
+        Board.__init__(self, waxwing.EthernetSoC, {"serial", "ethernet"})
 
     def load(self):
         #from litex.build.xilinx import iMPACT

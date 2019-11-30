@@ -20,6 +20,9 @@ from litedram.modules import MT46H32M16
 from litedram.phy import s6ddrphy
 from litedram.core import ControllerSettings
 
+from liteeth.phy.mii import LiteEthPHYMII
+from liteeth.mac import LiteEthMAC
+
 # CRG ----------------------------------------------------------------------------------------------
 
 class _CRG(Module):
@@ -30,6 +33,7 @@ class _CRG(Module):
         self.clock_domains.cd_sdram_half = ClockDomain()
         self.clock_domains.cd_sdram_full_wr = ClockDomain()
         self.clock_domains.cd_sdram_full_rd = ClockDomain()
+        self.clock_domains.cd_eth = ClockDomain()
 
         # Input 100MHz clock
         f0 = Fraction(100, 1)*1000000
@@ -67,7 +71,7 @@ class _CRG(Module):
         unbuf_sdram_half_a  = Signal()
         unbuf_sdram_half_b  = Signal()
         unbuf_unused_a      = Signal()
-        unbuf_unused_b      = Signal()
+        unbuf_eth           = Signal()
         unbuf_sys           = Signal()
 
         # PLL signals
@@ -103,9 +107,9 @@ class _CRG(Module):
             # (62.5 MHz) off-chip ddr
             o_CLKOUT3=unbuf_sdram_half_b, p_CLKOUT3_DUTY_CYCLE=.5,
             p_CLKOUT3_PHASE=270., p_CLKOUT3_DIVIDE=(p*2),
-            # (31.25 MHz) unused
-            o_CLKOUT4=unbuf_unused_b,     p_CLKOUT4_DUTY_CYCLE=.5,
-            p_CLKOUT4_PHASE=0.,   p_CLKOUT4_DIVIDE=(p*4),
+            # (25.00 MHz) eth
+            o_CLKOUT4=unbuf_eth,  p_CLKOUT4_DUTY_CYCLE=.5,
+            p_CLKOUT4_PHASE=0.,   p_CLKOUT4_DIVIDE=(p*5),
             # (31.25 MHz) sysclk
             o_CLKOUT5=unbuf_sys,          p_CLKOUT5_DUTY_CYCLE=.5,
             p_CLKOUT5_PHASE=0.,   p_CLKOUT5_DIVIDE=(p*4),
@@ -143,6 +147,13 @@ class _CRG(Module):
             self.cd_sdram_full_rd.clk.eq(self.cd_sdram_full_wr.clk),
             self.clk4x_rd_strb.eq(self.clk4x_wr_strb),
         ]
+
+        # ethernet
+        self.specials += Instance(
+            "BUFG",
+            i_I=unbuf_eth,
+            o_O=self.cd_eth.clk
+        )
 
         # sdram_half
         self.specials += Instance(
@@ -182,11 +193,11 @@ class _CRG(Module):
 # BaseSoC ------------------------------------------------------------------------------------------
 
 class BaseSoC(SoCSDRAM):
-    def __init__(self, sys_clk_freq=int(31.25e6), **kwargs):
+    def __init__(self, sys_clk_freq=int(31.25e6), integrated_rom_size=0x8000, **kwargs):
         assert sys_clk_freq == int(31.25e6)
         platform = waxwing.Platform()
         SoCSDRAM.__init__(self, platform, clk_freq=sys_clk_freq,
-                          integrated_rom_size=0x8000,
+                          integrated_rom_size=integrated_rom_size,
                           integrated_sram_size=0x8000,
                           **kwargs)
 
@@ -216,15 +227,46 @@ class BaseSoC(SoCSDRAM):
                 self.ddrphy.clk4x_rd_strb.eq(self.crg.clk4x_rd_strb),
             ]
 
+# EthernetSoC --------------------------------------------------------------------------------------
+
+class EthernetSoC(BaseSoC):
+    mem_map = {
+        "ethmac": 0xb0000000,
+    }
+    mem_map.update(BaseSoC.mem_map)
+
+    def __init__(self, **kwargs):
+        BaseSoC.__init__(self, integrated_rom_size=0x10000, **kwargs)
+
+        self.submodules.ethphy = LiteEthPHYMII(self.platform.request("eth_clocks"),
+                                               self.platform.request("eth"))
+        self.add_csr("ethphy")
+        self.submodules.ethmac = LiteEthMAC(phy=self.ethphy, dw=32,
+            interface="wishbone", endianness=self.cpu.endianness)
+        self.add_wb_slave(self.mem_map["ethmac"], self.ethmac.bus, 0x2000)
+        self.add_memory_region("ethmac", self.mem_map["ethmac"], 0x2000, type="io")
+        self.add_csr("ethmac")
+        self.add_interrupt("ethmac")
+        #self.ethphy.crg.cd_eth_rx.clk.attr.add("keep")
+        #self.ethphy.crg.cd_eth_tx.clk.attr.add("keep")
+        #self.platform.add_period_constraint(self.ethphy.crg.cd_eth_rx.clk, 1e9/12.5e6)
+        #self.platform.add_period_constraint(self.ethphy.crg.cd_eth_tx.clk, 1e9/12.5e6)
+        #self.platform.add_false_path_constraints(
+        #    self.crg.cd_sys.clk,
+        #    self.ethphy.crg.cd_eth_rx.clk,
+        #    self.ethphy.crg.cd_eth_tx.clk)
+
 # Build --------------------------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(description="LiteX SoC on WaxWing")
     builder_args(parser)
     soc_sdram_args(parser)
+    parser.add_argument("--with-ethernet", action="store_true",
+                        help="enable Ethernet support")
     args = parser.parse_args()
-
-    soc = BaseSoC(**soc_core_argdict(args))
+    cls = EthernetSoC if args.with_ethernet else BaseSoC
+    soc = cls(**soc_sdram_argdict(args))
     builder = Builder(soc, **builder_argdict(args))
     builder.build()
 
