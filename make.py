@@ -139,6 +139,18 @@ class WaxWing(Board):
         #prog.load_bitstream("build/waxwing/gateware/top.bit")    
         os.system("numato-loader build/waxwing/gateware/top.bin")
 
+# Anvyl support -----------------------------------------------------------------------------
+
+class Anvyl(Board):
+    def __init__(self):
+        from new_boards.targets import anvyl
+        Board.__init__(self, anvyl.BaseSoC, {"serial"})
+
+    def load(self):
+        from litex.build.xilinx import iMPACT
+        prog = iMPACT()
+        prog.load_bitstream("build/anvyl/gateware/top.bit")    
+
 # Versa ECP5 support -------------------------------------------------------------------------------
 
 class VersaECP5(Board):
@@ -185,6 +197,7 @@ supported_boards = {
     "nexys_video":  NexysVideo,
     "minispartan6": MiniSpartan6,
     "waxwing":      WaxWing,
+    "anvyl":        Anvyl,
     # Lattice
     "versa_ecp5":   VersaECP5,
     "ulx3s":        ULX3S,
