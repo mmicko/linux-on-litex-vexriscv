@@ -17,6 +17,9 @@ from litedram.modules import MT47H64M16
 from litedram.phy import s6ddrphy
 from litedram.core import ControllerSettings
 
+from liteeth.phy.rmii import LiteEthPHYRMII
+from liteeth.mac import LiteEthMAC
+
 # CRG ----------------------------------------------------------------------------------------------
 
 class _CRG(Module):
@@ -28,7 +31,7 @@ class _CRG(Module):
         self.clock_domains.cd_sdram_full_wr = ClockDomain()
         self.clock_domains.cd_sdram_full_rd = ClockDomain()
         # Clock domain for peripherals (such as HDMI output).
-        self.clock_domains.cd_base50 = ClockDomain()
+        self.clock_domains.cd_eth = ClockDomain()
         self.clock_domains.cd_encoder = ClockDomain()
 
         self.reset = Signal()
@@ -57,7 +60,7 @@ class _CRG(Module):
         unbuf_sdram_half_b = Signal()
         unbuf_encoder = Signal()
         unbuf_sys = Signal()
-        unbuf_unused = Signal()
+        unbuf_eth = Signal()
 
         # PLL signals
         pll_lckd = Signal()
@@ -91,8 +94,8 @@ class _CRG(Module):
             # (150MHz) off-chip ddr
             o_CLKOUT3=unbuf_sdram_half_b, p_CLKOUT3_DUTY_CYCLE=.5,
             p_CLKOUT3_PHASE=250., p_CLKOUT3_DIVIDE=p//2,
-            # ( 50MHz) unused? - Was peripheral
-            o_CLKOUT4=unbuf_unused, p_CLKOUT4_DUTY_CYCLE=.5,
+            # ( 50MHz) ethernet
+            o_CLKOUT4=unbuf_eth, p_CLKOUT4_DUTY_CYCLE=.5,
             p_CLKOUT4_PHASE=0., p_CLKOUT4_DIVIDE=12,
             # ( 75MHz) sysclk
             o_CLKOUT5=unbuf_sys, p_CLKOUT5_DUTY_CYCLE=.5,
@@ -144,37 +147,16 @@ class _CRG(Module):
                                   o_Q=output_clk)
         self.specials += Instance("OBUFDS", i_I=output_clk, o_O=clk.p, o_OB=clk.n)
 
-        # Peripheral clock - 50MHz
-        # ------------------------------------------------------------------------------
-        # The peripheral clock is kept separate from the system clock to allow
-        # the system clock to be increased in the future.
-        dcm_base50_locked = Signal()
-        self.specials += [
-            Instance("DCM_CLKGEN", name="crg_periph_dcm_clkgen",
-                     p_CLKIN_PERIOD=10.0,
-                     p_CLKFX_MULTIPLY=2,
-                     p_CLKFX_DIVIDE=4,
-                     p_CLKFX_MD_MAX=0.5, # CLKFX_MULTIPLY/CLKFX_DIVIDE
-                     p_CLKFXDV_DIVIDE=2,
-                     p_SPREAD_SPECTRUM="NONE",
-                     p_STARTUP_WAIT="FALSE",
-
-                     i_CLKIN=clk100a,
-                     o_CLKFX=self.cd_base50.clk,
-                     o_LOCKED=dcm_base50_locked,
-                     i_FREEZEDCM=0,
-                     i_RST=ResetSignal(),
-                     ),
-            AsyncResetSynchronizer(self.cd_base50,
-                self.cd_sys.rst | ~dcm_base50_locked)
-        ]
-        platform.add_period_constraint(self.cd_base50.clk, 20)
 
         # Encoder clock - 66 MHz
         # ------------------------------------------------------------------------------
         self.specials += Instance("BUFG", name="encoder_bufg", i_I=unbuf_encoder, o_O=self.cd_encoder.clk)
         self.specials += AsyncResetSynchronizer(self.cd_encoder, self.cd_sys.rst)
 
+        # Ethernet clock - 50 MHz
+        # ------------------------------------------------------------------------------
+        self.specials += Instance("BUFG", name="eth_bufg", i_I=unbuf_eth, o_O=self.cd_eth.clk)
+        self.specials += AsyncResetSynchronizer(self.cd_eth, self.cd_sys.rst)
 
 # BaseSoC ------------------------------------------------------------------------------------------
 
@@ -213,6 +195,37 @@ class BaseSoC(SoCSDRAM):
                 self.ddrphy.clk4x_rd_strb.eq(self.crg.clk4x_rd_strb),
             ]
 
+# EthernetSoC --------------------------------------------------------------------------------------
+
+class EthernetSoC(BaseSoC):
+    mem_map = {
+        "ethmac": 0xb0000000,
+    }
+    mem_map.update(BaseSoC.mem_map)
+
+    def __init__(self, **kwargs):
+        BaseSoC.__init__(self, integrated_rom_size=0x10000, **kwargs)
+
+        self.submodules.ethphy = LiteEthPHYRMII(self.platform.request("eth_clocks"),
+                                                self.platform.request("eth"))
+        self.add_csr("ethphy")
+        self.submodules.ethmac = LiteEthMAC(phy=self.ethphy, dw=32,
+            interface="wishbone", endianness=self.cpu.endianness)
+        self.add_wb_slave(self.mem_map["ethmac"], self.ethmac.bus, 0x2000)
+        self.add_memory_region("ethmac", self.mem_map["ethmac"], 0x2000, type="io")
+        self.add_csr("ethmac")
+        self.add_interrupt("ethmac")
+        self.crg.cd_eth.clk.attr.add("keep")
+        self.ethphy.crg.cd_eth_rx.clk.attr.add("keep")
+        self.ethphy.crg.cd_eth_tx.clk.attr.add("keep")
+        self.platform.add_period_constraint(self.crg.cd_eth.clk, 1e9/50e6)
+        #self.platform.add_period_constraint(self.ethphy.crg.cd_eth_rx.clk, 1e9/12.5e6)
+        #self.platform.add_period_constraint(self.ethphy.crg.cd_eth_tx.clk, 1e9/12.5e6)
+        #self.platform.add_false_path_constraints(
+        #    self.crg.cd_sys.clk,
+        #    self.ethphy.crg.cd_eth_rx.clk,
+        #    self.ethphy.crg.cd_eth_tx.clk)
+
 # Build --------------------------------------------------------------------------------------------
 
 def main():
@@ -223,7 +236,8 @@ def main():
     #                    help="enable Ethernet support")
     args = parser.parse_args()
     #cls = EthernetSoC if args.with_ethernet else BaseSoC
-    cls = BaseSoC
+    #cls = BaseSoC
+    cls = EthernetSoC
     soc = cls(**soc_sdram_argdict(args))
     builder = Builder(soc, **builder_argdict(args))
     builder.build(mode="yosys")

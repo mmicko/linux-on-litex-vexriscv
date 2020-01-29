@@ -45,7 +45,37 @@ _io = [
     ("user_btn", 1, Pins("D5"), IOStandard("LVCMOS33"), Misc("PULLUP")),
     ("user_btn", 2, Pins("A3"), IOStandard("LVCMOS33"), Misc("PULLUP")),
     ("user_btn", 3, Pins("AB9"), IOStandard("LVCMOS33"), Misc("PULLUP")),
+
+    ("eth_clocks", 0,
+        Subsignal("ref_clk", Pins("C12")),
+        IOStandard("LVCMOS33"),
+    ),
+
+    ("eth", 0,
+        #Subsignal("rst_n", Pins("D5")), #button 1
+        Subsignal("rx_data", Pins("C13 C14")),
+        Subsignal("crs_dv", Pins("B14")),
+        Subsignal("tx_en", Pins("D15")),
+        Subsignal("tx_data", Pins("E10 F10")),
+        Subsignal("mdc", Pins("C15")),
+        Subsignal("mdio", Pins("A14")),
+        Subsignal("rx_er", Pins("A13")),
+        IOStandard("LVCMOS33")
+     ),
 ]
+
+## Ethernet
+	#NET	"ETH_REFCLK"		LOC=C12	|	IOSTANDARD=LVCMOS33;			#Bank = 0, pin name = IO_L37N_GCLK12_0,	Sch name = ETH-REFCLK
+	#NET	"ETH_PHY_MDC"	LOC=C15	|	IOSTANDARD=LVCMOS33;			#Bank = 0, pin name = IO_L62P_0,					Sch name = ETH-MDC
+	#NET	"ETH_PHY_MDIO"	LOC=A14	|	IOSTANDARD=LVCMOS33;			#Bank = 0, pin name = IO_L50N_0,					Sch name = ETH-MDIO
+	#NET	"ETH_TX_EN"			LOC=D15	|	IOSTANDARD=LVCMOS33;			#Bank = 0, pin name = IO_L46P_0,					Sch name = ETH-TXEN
+	#NET	"ETH_TXD[0]"			LOC=E10	|	IOSTANDARD=LVCMOS33;			#Bank = 0, pin name = IO_L38N_VREF_0,		Sch name = ETH-TXD0
+	#NET	"ETH_TXD[1]"			LOC=F10	|	IOSTANDARD=LVCMOS33;			#Bank = 0, pin name = IO_L38P_0,					Sch name = ETH-TXD1
+	#NET	"ETH_CRSDV"		LOC=B14	|	IOSTANDARD=LVCMOS33;			#Bank = 0, pin name = IO_L50P_0,					Sch name = ETH-CRSDV
+	#NET	"ETH_RXERR"		LOC=A13	|	IOSTANDARD=LVCMOS33;			#Bank = 0, pin name = IO_L48N_0,					Sch name = ETH-RXERR
+	#NET	"ETH_RXD[0]"		LOC=C13	|	IOSTANDARD=LVCMOS33;			#Bank = 0, pin name = IO_L48P_0,					Sch name = ETH-RXD0
+	#NET	"ETH_RXD[1]"		LOC=C14	|	IOSTANDARD=LVCMOS33;			#Bank = 0, pin name = IO_L46N_0,					Sch name = ETH-RXD1
+
 
 _connectors = [
 ]
