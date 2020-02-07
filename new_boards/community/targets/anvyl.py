@@ -232,12 +232,10 @@ def main():
     parser = argparse.ArgumentParser(description="LiteX SoC on Anvyl")
     builder_args(parser)
     soc_sdram_args(parser)
-    #parser.add_argument("--with-ethernet", action="store_true",
-    #                    help="enable Ethernet support")
+    parser.add_argument("--with-ethernet", action="store_true",
+                        help="enable Ethernet support")
     args = parser.parse_args()
-    #cls = EthernetSoC if args.with_ethernet else BaseSoC
-    #cls = BaseSoC
-    cls = EthernetSoC
+    cls = EthernetSoC if args.with_ethernet else BaseSoC
     soc = cls(**soc_sdram_argdict(args))
     builder = Builder(soc, **builder_argdict(args))
     builder.build(mode="yosys")

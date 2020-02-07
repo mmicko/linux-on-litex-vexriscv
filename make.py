@@ -144,7 +144,7 @@ class WaxWing(Board):
 class Anvyl(Board):
     def __init__(self):
         from new_boards.targets import anvyl
-        Board.__init__(self, anvyl.EthernetSoC, {"serial", "ethernet"})
+        Board.__init__(self, anvyl.BaseSoC, {"serial"})
 
     def load(self):
         from litex.build.xilinx import iMPACT
