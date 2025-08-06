@@ -796,3 +796,14 @@ class Kolsch(Board):
             "serial",
             "spisdcard",
         })
+
+# Intergalaktik ULX5M-GS support ---------------------------------------------------------------------
+
+class Intergalaktik_ulx5m_gs(Board):
+    soc_kwargs = {"sys_clk_freq": int(20e6)}
+    def __init__(self):
+        from litex_boards.targets import intergalaktik_ulx5m_gs
+        Board.__init__(self, intergalaktik_ulx5m_gs.BaseSoC, soc_capabilities={
+            "serial",
+            "spisdcard",
+        })
